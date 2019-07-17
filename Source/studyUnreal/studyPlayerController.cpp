@@ -12,6 +12,13 @@ void AstudyPlayerController::Possess(APawn * aPawn)
 	ABLOG_S(Warning);
 	Super::Possess(aPawn);
 }
+void AstudyPlayerController::BeginPlay()
+{
+	Super::BeginPlay();
 
+	FInputModeGameOnly InputMode;
+	SetInputMode(InputMode);
+
+}
 
 
