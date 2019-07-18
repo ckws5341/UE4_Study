@@ -88,7 +88,9 @@ SourceArt/**/*.tga
 
 Binaries/*
 
+#Content Files(storage problem)
 
+Content/*
 
 # Builds
 
