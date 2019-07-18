@@ -2,11 +2,12 @@
 
 #include "studyGameMode.h"
 #include "studyPawn.h"
+#include "studyCharacter.h"
 #include "studyPlayerController.h"
 
 AstudyGameMode::AstudyGameMode()
 {
-	DefaultPawnClass = AstudyPawn::StaticClass();
+	DefaultPawnClass = AstudyCharacter::StaticClass();
 	PlayerControllerClass = AstudyPlayerController::StaticClass();
 }
 
