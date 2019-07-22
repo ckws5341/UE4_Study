@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "studyCharacter.h"
-
+#include "studyAnimInstance.h"
 
 // Sets default values
 AstudyCharacter::AstudyCharacter()
@@ -33,7 +33,11 @@ AstudyCharacter::AstudyCharacter()
 
 	ArmLengthSpeed = 3.f;
 	ArmRotationSpeed = 10.f;
+	GetCharacterMovement()->JumpZVelocity = 800.f;
 
+	IsAttacking = false;
+	MaxCombo = 4;
+	AttackEndComboState();
 }
 
 // Called when the game starts or when spawned
@@ -72,8 +76,10 @@ void AstudyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 	PlayerInputComponent->BindAxis(TEXT("LeftRight"), this, &AstudyCharacter::LeftRight);
 	PlayerInputComponent->BindAxis(TEXT("LookUp"), this, &AstudyCharacter::LookUp);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AstudyCharacter::Turn);
-
+	
+	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &AstudyCharacter::Jump);
 	PlayerInputComponent->BindAction(TEXT("ViewChange"), EInputEvent::IE_Pressed, this, &AstudyCharacter::ViewChange);
+	PlayerInputComponent->BindAction(TEXT("Attack"), EInputEvent::IE_Pressed, this, &AstudyCharacter::Attack);
 
 }
 
@@ -82,7 +88,7 @@ void AstudyCharacter::UpDown(float NewAxisValue)
 	switch (CurrentControlMode)
 	{
 	case EControlMode::GTA:
-		AddMovementInput(FRotationMatrix(GetControlRotation()).GetUnitAxis(EAxis::X), NewAxisValue);
+		AddMovementInput(FRotationMatrix(FRotator(0.f, GetControlRotation().Yaw, 0.f)).GetUnitAxis(EAxis::X), NewAxisValue);
 		break;
 	case EControlMode::DIABLO:
 		DirectionToMove.X = NewAxisValue;
@@ -95,7 +101,7 @@ void AstudyCharacter::LeftRight(float NewAxisValue)
 	switch (CurrentControlMode)
 	{
 	case EControlMode::GTA:
-		AddMovementInput(FRotationMatrix(GetControlRotation()).GetUnitAxis(EAxis::Y), NewAxisValue);
+		AddMovementInput(FRotationMatrix(FRotator(0.f, GetControlRotation().Yaw, 0.f)).GetUnitAxis(EAxis::Y), NewAxisValue);
 		break;
 	case EControlMode::DIABLO:
 		DirectionToMove.Y = NewAxisValue;
@@ -175,4 +181,59 @@ void AstudyCharacter::ViewChange()
 		SetControlMode(EControlMode::GTA);
 		break;
 	}
+}
+
+void AstudyCharacter::Attack()
+{
+	if (IsAttacking)
+	{
+		if (CanNextCombo)
+			IsComboInputOn = true;
+	}
+	else
+	{
+		AttackStartComboState();
+		studyAnim->PlayAttackMontage();
+		studyAnim->JumpToAttackMontageSection(CurrentCombo);
+		IsAttacking = true;
+	}
+}
+
+void AstudyCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	studyAnim = Cast<UstudyAnimInstance>(GetMesh()->GetAnimInstance());
+	
+	studyAnim->OnMontageEnded.AddDynamic(this, &AstudyCharacter::OnAttackMontageEnded);
+
+	studyAnim->OnNextAttackCheck.AddLambda([this]()->void {
+		CanNextCombo = false;
+
+		if (IsComboInputOn)
+		{
+			AttackStartComboState();
+			studyAnim->JumpToAttackMontageSection(CurrentCombo);
+		}
+	});
+}
+
+void AstudyCharacter::OnAttackMontageEnded(UAnimMontage * Montage, bool bInterrupted)
+{
+	IsAttacking = false;
+	AttackEndComboState();
+}
+
+void AstudyCharacter::AttackStartComboState()
+{
+	CanNextCombo = true;
+	IsComboInputOn = false;
+	FMath::IsWithinInclusive<int32>(CurrentCombo, 0, MaxCombo - 1);
+	CurrentCombo = FMath::Clamp<int32>(CurrentCombo + 1, 1, MaxCombo);
+}
+
+void AstudyCharacter::AttackEndComboState()
+{
+	IsComboInputOn = false;
+	CanNextCombo = false;
+	CurrentCombo = 0;
 }
