@@ -27,7 +27,7 @@ public:
 public :
 	FOnNextAttackCheckDelegate OnNextAttackCheck;
 	FOnAttackHitCheckDelegate OnAttackHitCheck;
-	
+	void SetDeadAnim() { IsDead = true; }
 private :
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Pawn, Meta = (AllowPrivateAccess = true)) float CurrentPawnSpeed;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Pawn, Meta = (AllowPrivateAccess = true)) bool IsInAir;
@@ -39,5 +39,6 @@ private :
 
 	FName GetAttackMontageSectionName(int32 Section);
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Pawn, Meta = (AllowPrivateAccess = true)) bool IsDead;
 
 };

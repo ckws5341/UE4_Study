@@ -7,6 +7,7 @@ UstudyAnimInstance::UstudyAnimInstance()
 {
 	CurrentPawnSpeed = 0.f;
 	IsInAir = false;
+	IsDead = false;
 
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> study_attackMontage(TEXT("/Game/Book/Animation/SK_Mannequin_Skeleton_Montage.SK_Mannequin_Skeleton_Montage"));
 	if (study_attackMontage.Succeeded())
@@ -18,7 +19,9 @@ void UstudyAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Super::NativeUpdateAnimation(DeltaSeconds);
 
 	auto Pawn = TryGetPawnOwner();
-	if (::IsValid(Pawn))
+	if (!::IsValid(Pawn)) return;
+
+	if(!IsDead)
 	{
 		CurrentPawnSpeed = Pawn->GetVelocity().Size();
 		auto Character = Cast<ACharacter>(Pawn);
