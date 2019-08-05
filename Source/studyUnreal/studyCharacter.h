@@ -43,8 +43,14 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 	
+	bool CanSetWeapon();
+	void SetWeapon(class AstudyWeapon* NewWeapon);
+
+	UPROPERTY(VisibleAnywhere, Category = Weapon) class AstudyWeapon* CurrentWeapon;
 	UPROPERTY(VisibleAnywhere, Category = Camera) USpringArmComponent* SpringArm;
 	UPROPERTY(VisibleAnywhere, Category = Camera) UCameraComponent* Camera;
+	UPROPERTY(VisibleAnywhere, Category = Stat) class UStudyCharacterStatComponent* CharacterStat;
+	UPROPERTY(VisibleAnywhere, Category = UI) class UWidgetComponent* HPBarWidget;
 
 private :
 	void UpDown(float NewAxisValue);
@@ -77,5 +83,7 @@ private :
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = Attack, Meta = (AllowPrivateAccess = true)) float AttackRange;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = Attack, Meta = (AllowPrivateAccess = true)) float AttackRadius;
+
+
 
 };

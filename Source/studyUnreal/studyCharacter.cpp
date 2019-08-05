@@ -2,7 +2,12 @@
 
 #include "studyCharacter.h"
 #include "studyAnimInstance.h"
+#include "studyWeapon.h"
+#include "StudyCharacterStatComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Components/WidgetComponent.h"
+#include "studyCharacterWidget.h"
+#include "studyAIController.h"
 
 // Sets default values
 AstudyCharacter::AstudyCharacter()
@@ -12,9 +17,12 @@ AstudyCharacter::AstudyCharacter()
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SPRINGARM"));
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("CAMERA"));
+	CharacterStat = CreateDefaultSubobject<UStudyCharacterStatComponent>(TEXT("CHARACTERSTAT"));
+	HPBarWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("HPBARWIDGET"));
 
 	SpringArm->SetupAttachment(GetCapsuleComponent());
 	Camera->SetupAttachment(SpringArm);
+	HPBarWidget->SetupAttachment(GetMesh());
 
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -88.f), FRotator(0.f, -90.f, 0.f));
 	SpringArm->TargetArmLength = 400.f;
@@ -44,6 +52,18 @@ AstudyCharacter::AstudyCharacter()
 
 	AttackRange = 200.f;
 	AttackRadius = 50.f;
+
+	HPBarWidget->SetRelativeLocation(FVector(0.f, 0.f, 180.f));
+	HPBarWidget->SetWidgetSpace(EWidgetSpace::Screen);
+	static ConstructorHelpers::FClassFinder<UUserWidget> study_UI(TEXT("/Game/Book/UI/UI_HPBar.UI_HPBar_C"));
+	if (study_UI.Succeeded())
+	{
+		HPBarWidget->SetWidgetClass(study_UI.Class);
+		HPBarWidget->SetDrawSize(FVector2D(150.f, 50.f));
+	}
+
+	AIControllerClass = AstudyAIController::StaticClass();
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 }
 
 // Called when the game starts or when spawned
@@ -53,6 +73,21 @@ void AstudyCharacter::BeginPlay()
 	
 }
 
+bool AstudyCharacter::CanSetWeapon()
+{
+	return (nullptr == CurrentWeapon);
+}
+
+void AstudyCharacter::SetWeapon(AstudyWeapon* NewWeapon)
+{
+	FName WeaponSocket(TEXT("Hand_rSocket"));
+	if (nullptr != NewWeapon)
+	{
+		NewWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
+		NewWeapon->SetOwner(this);
+		CurrentWeapon = NewWeapon;
+	}
+}
 // Called every frame
 void AstudyCharacter::Tick(float DeltaTime)
 {
@@ -222,6 +257,19 @@ void AstudyCharacter::PostInitializeComponents()
 		}
 		studyAnim->OnAttackHitCheck.AddUObject(this, &AstudyCharacter::AttackCheck);
 	});
+	if (nullptr != CharacterStat)
+	{
+		CharacterStat->OnHPIsZero.AddLambda([this]()->void {
+			ABLOG(Warning, TEXT("On HP is Zero"));
+			studyAnim->SetDeadAnim();
+			SetActorEnableCollision(false);
+		});
+	}
+
+	auto CharacterWidget = Cast<UstudyCharacterWidget>(HPBarWidget->GetUserWidgetObject());
+	if (nullptr != CharacterWidget)
+		CharacterWidget->BindCharacterStat(CharacterStat);
+
 }
 
 void AstudyCharacter::OnAttackMontageEnded(UAnimMontage * Montage, bool bInterrupted)
@@ -281,7 +329,7 @@ void AstudyCharacter::AttackCheck()
 		if (HitResult.Actor.IsValid())
 			ABLOG(Warning, TEXT("Hit Actor Name : %s"), *HitResult.Actor->GetName());
 		FDamageEvent DamageEvent;
-		HitResult.Actor->TakeDamage(50.f, DamageEvent, GetController(), this);
+		HitResult.Actor->TakeDamage(CharacterStat->GetAttack() , DamageEvent, GetController(), this);
 	}
 }
 
@@ -290,10 +338,6 @@ float AstudyCharacter::TakeDamage(float DamageAmount, FDamageEvent const & Damag
 	float FinalDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	ABLOG(Warning, TEXT("Actor : %s took Damage : %f"), *GetName(), FinalDamage);
 
-	if (FinalDamage > 0.f)
-	{
-		studyAnim->SetDeadAnim();
-		SetActorEnableCollision(false);
-	}
+	CharacterStat->SetDamage(FinalDamage);
 	return FinalDamage;
 }
