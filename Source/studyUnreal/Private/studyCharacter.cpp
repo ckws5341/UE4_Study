@@ -206,6 +206,12 @@ void AstudyCharacter::SetControlMode(EControlMode NewControlMode)
 		GetCharacterMovement()->bUseControllerDesiredRotation = true;
 		GetCharacterMovement()->RotationRate = FRotator(0.f, 720.f, 0.f);
 		break;
+	case EControlMode::NPC :
+		bUseControllerRotationYaw = false;
+		GetCharacterMovement()->bUseControllerDesiredRotation = false;
+		GetCharacterMovement()->bUseControllerDesiredRotation = true;
+		GetCharacterMovement()->RotationRate = FRotator(0.f, 480.f, 0.f);
+		break;
 	}
 }
 
@@ -276,6 +282,7 @@ void AstudyCharacter::OnAttackMontageEnded(UAnimMontage * Montage, bool bInterru
 {
 	IsAttacking = false;
 	AttackEndComboState();
+	OnAttackEnd.Broadcast();
 }
 
 void AstudyCharacter::AttackStartComboState()
@@ -340,4 +347,19 @@ float AstudyCharacter::TakeDamage(float DamageAmount, FDamageEvent const & Damag
 
 	CharacterStat->SetDamage(FinalDamage);
 	return FinalDamage;
+}
+
+void AstudyCharacter::PossessedBy(AController * NewController)
+{
+	Super::PossessedBy(NewController);
+	if (IsPlayerControlled())
+	{
+		SetControlMode(EControlMode::DIABLO);
+		GetCharacterMovement()->MaxWalkSpeed = 600.f;
+	}
+	else
+	{
+		SetControlMode(EControlMode::NPC);
+		GetCharacterMovement()->MaxWalkSpeed = 300.f;
+	}
 }
