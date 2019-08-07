@@ -9,6 +9,6 @@ public class studyUnrealTarget : TargetRules
 	{
 		Type = TargetType.Game;
 
-		ExtraModuleNames.AddRange( new string[] { "studyUnreal" } );
+		ExtraModuleNames.AddRange( new string[] { "studyUnreal", "ArenaBattleSetting" } );
 	}
 }

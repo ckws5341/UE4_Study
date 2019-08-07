@@ -8,6 +8,8 @@
 #include "Components/WidgetComponent.h"
 #include "studyCharacterWidget.h"
 #include "studyAIController.h"
+#include "studyCharacterSetting.h"
+#include "StudyGameInstance.h"
 
 // Sets default values
 AstudyCharacter::AstudyCharacter()
@@ -64,13 +66,36 @@ AstudyCharacter::AstudyCharacter()
 
 	AIControllerClass = AstudyAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+	auto DefaultSetting = GetDefault<UstudyCharacterSetting>();
+	if (DefaultSetting->CharacterAssets.Num() > 0)
+	{
+		for (auto CharacterAsset : DefaultSetting->CharacterAssets)
+		{
+			ABLOG(Warning, TEXT("Character Asset : %s"), *CharacterAsset.ToString());
+		}
+	}
+
+
 }
 
 // Called when the game starts or when spawned
 void AstudyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	if (!IsPlayerControlled())
+	{
+		auto DefaultSetting = GetDefault<UstudyCharacterSetting>();
+		int32 RandIndex = FMath::RandRange(0, DefaultSetting->CharacterAssets.Num() - 1);
+		CharacterAssetToLoad = DefaultSetting->CharacterAssets[RandIndex];
+
+		auto studyGameInstance = Cast<UStudyGameInstance>(GetGameInstance());
+		if (nullptr != studyGameInstance)
+		{
+			AssetStreamingHandle = studyGameInstance->StreamableManager.RequestAsyncLoad(CharacterAssetToLoad, FStreamableDelegate::CreateUObject(this, &AstudyCharacter::OnAssetLoadCompleted));
+		}
+	}
 }
 
 bool AstudyCharacter::CanSetWeapon()
@@ -361,5 +386,15 @@ void AstudyCharacter::PossessedBy(AController * NewController)
 	{
 		SetControlMode(EControlMode::NPC);
 		GetCharacterMovement()->MaxWalkSpeed = 300.f;
+	}
+}
+
+void AstudyCharacter::OnAssetLoadCompleted()
+{
+	AssetStreamingHandle->ReleaseHandle();
+	TSoftObjectPtr<USkeletalMesh> LoadedAssetPath(CharacterAssetToLoad);
+	if (LoadedAssetPath.IsValid())
+	{
+		GetMesh()->SetSkeletalMesh(LoadedAssetPath.Get());
 	}
 }

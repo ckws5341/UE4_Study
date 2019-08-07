@@ -9,6 +9,6 @@ public class studyUnrealEditorTarget : TargetRules
 	{
 		Type = TargetType.Editor;
 
-		ExtraModuleNames.AddRange( new string[] { "studyUnreal" } );
+		ExtraModuleNames.AddRange( new string[] { "studyUnreal", "ArenaBattleSetting" } );
 	}
 }
