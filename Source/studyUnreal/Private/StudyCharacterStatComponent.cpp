@@ -74,3 +74,8 @@ float UStudyCharacterStatComponent::GetHPRatio()
 		return (CurrentStatData->MaxHP < KINDA_SMALL_NUMBER) ? 0.f : (CurrentHP / CurrentStatData->MaxHP);
 	else return 0.f;
 }
+
+int32 UStudyCharacterStatComponent::GetDropExp() const
+{
+	return CurrentStatData->DropExp;
+}

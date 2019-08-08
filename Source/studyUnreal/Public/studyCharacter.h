@@ -16,6 +16,9 @@ class STUDYUNREAL_API AstudyCharacter : public ACharacter
 public:
 	// Sets default values for this character's properties
 	AstudyCharacter();
+	void SetCharacterState(ECharacterState NewState);
+	ECharacterState GetCharacterState() const;
+	int32 GetExp() const;
 
 protected:
 	// Called when the game starts or when spawned
@@ -89,7 +92,19 @@ private :
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = Attack, Meta = (AllowPrivateAccess = true)) float AttackRadius;
 
-	FSoftObjectPath CharacterAssetToLoad = FSoftObjectPath(nullptr);
 	TSharedPtr<struct FStreamableHandle> AssetStreamingHandle;
+
+	int32 AssetIndex = 0;
+	FStringAssetReference CharacterAssetToLoad;
+
+	UPROPERTY(Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = State, Meta = (AllowPrivateAccess = true)) ECharacterState CurrentState;
+	UPROPERTY(Transient, VisibleInstanceOnly, BlueprintReadOnly, Category = State, Meta = (AllowPrivateAccess = true)) bool bIsPlayer;
+	UPROPERTY() class AstudyAIController* studyAIController;
+	UPROPERTY() class AstudyPlayerController* studyPlayerController;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = State, Meta = (AllowPrivateAccess = true)) float DeadTimer;
+
+	FTimerHandle DeadTimerHandle = {};
+
+
 
 };

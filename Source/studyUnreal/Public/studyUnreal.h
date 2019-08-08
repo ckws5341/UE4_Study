@@ -4,6 +4,15 @@
 
 #include "EngineMinimal.h"
 
+UENUM(BlueprintType)
+enum class ECharacterState :uint8
+{
+	PREINIT,
+	LOADING,
+	READY,
+	DEAD
+};
+
 DECLARE_LOG_CATEGORY_EXTERN(studyUnreal, Log, All);
 #define ABLOG_CALLINFO (FString(__FUNCTION__) + TEXT("(")+FString::FromInt(__LINE__)+TEXT(")"))
 #define ABLOG_S(Verbosity) UE_LOG(studyUnreal, Verbosity, TEXT("%s"), *ABLOG_CALLINFO)

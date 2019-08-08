@@ -14,9 +14,15 @@ class STUDYUNREAL_API AstudyGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 
-	AstudyGameMode();
 
 public :
+	AstudyGameMode();
+
+	virtual void PostInitializeComponents() override;
 	virtual void PostLogin(APlayerController * NewPlayer) override;
-	
+	void AddScore(class AstudyPlayerController * Player);
+
+private :
+	UPROPERTY() class AstudyGameState* studyGameState;
+
 };

@@ -10,6 +10,10 @@
 #include "studyAIController.h"
 #include "studyCharacterSetting.h"
 #include "StudyGameInstance.h"
+#include "studyPlayerController.h"
+#include "studyPlayerState.h"
+#include "studyHUDWidget.h"
+
 
 // Sets default values
 AstudyCharacter::AstudyCharacter()
@@ -76,26 +80,131 @@ AstudyCharacter::AstudyCharacter()
 		}
 	}
 
+	AssetIndex = 4;
+	SetActorHiddenInGame(true);
+	HPBarWidget->SetHiddenInGame(true);
+	bCanBeDamaged = false;
 
+	DeadTimer = 5.f;
 }
 
 // Called when the game starts or when spawned
 void AstudyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (!IsPlayerControlled())
+	bIsPlayer = IsPlayerControlled();
+	if (bIsPlayer)
 	{
-		auto DefaultSetting = GetDefault<UstudyCharacterSetting>();
-		int32 RandIndex = FMath::RandRange(0, DefaultSetting->CharacterAssets.Num() - 1);
-		CharacterAssetToLoad = DefaultSetting->CharacterAssets[RandIndex];
+		studyPlayerController = Cast<AstudyPlayerController>(GetController());
+	}
+	else
+	{
+		studyAIController = Cast<AstudyAIController>(GetController());
+	}
 
-		auto studyGameInstance = Cast<UStudyGameInstance>(GetGameInstance());
-		if (nullptr != studyGameInstance)
+	auto DefaultSetting = GetDefault<UstudyCharacterSetting>();
+	if (bIsPlayer)
+	{
+		AssetIndex = 4;
+	}
+	else
+	{
+		AssetIndex = FMath::RandRange(0, DefaultSetting->CharacterAssets.Num() - 1);
+	}
+
+	CharacterAssetToLoad = DefaultSetting->CharacterAssets[AssetIndex];
+	auto studyGameInstance = Cast<UStudyGameInstance>(GetGameInstance());
+	if (nullptr != studyGameInstance)
+	{
+		AssetStreamingHandle = studyGameInstance->StreamableManager.RequestAsyncLoad(CharacterAssetToLoad, FStreamableDelegate::CreateUObject(this, &AstudyCharacter::OnAssetLoadCompleted));
+		SetCharacterState(ECharacterState::LOADING);
+	}
+}
+void AstudyCharacter::SetCharacterState(ECharacterState NewState)
+{
+	if (CurrentState != NewState)
+	{
+		CurrentState = NewState;
+		switch (CurrentState)
 		{
-			AssetStreamingHandle = studyGameInstance->StreamableManager.RequestAsyncLoad(CharacterAssetToLoad, FStreamableDelegate::CreateUObject(this, &AstudyCharacter::OnAssetLoadCompleted));
+		case ECharacterState::LOADING:
+		{
+			if (bIsPlayer)
+			{
+				DisableInput(studyPlayerController);
+
+				studyPlayerController->GetHUDWidget()->BindCharacterStat(CharacterStat);
+
+
+				auto studyPlayerState = Cast<AstudyPlayerState>(PlayerState);
+				if (nullptr != studyPlayerState)
+					CharacterStat->SetNewLevel(studyPlayerState->GetCharacterLevel());
+			}
+
+			SetActorHiddenInGame(true);
+			HPBarWidget->SetHiddenInGame(true);
+			bCanBeDamaged = false;
+			break;
+		}
+		case ECharacterState::READY:
+		{
+			SetActorHiddenInGame(false);
+			HPBarWidget->SetHiddenInGame(false);
+			bCanBeDamaged = true;
+			CharacterStat->OnHPIsZero.AddLambda([this]()->void {
+				SetCharacterState(ECharacterState::DEAD);
+			});
+
+			auto CharacterWidget = Cast<UstudyCharacterWidget>(HPBarWidget->GetUserWidgetObject());
+			if (nullptr != CharacterWidget)
+			{
+				CharacterWidget->BindCharacterStat(CharacterStat);
+			}
+			if (bIsPlayer)
+			{
+				SetControlMode(EControlMode::DIABLO);
+				GetCharacterMovement()->MaxWalkSpeed = 600.f;
+				EnableInput(studyPlayerController);
+			}
+			else
+			{
+				SetControlMode(EControlMode::NPC);
+				GetCharacterMovement()->MaxWalkSpeed = 300.f;
+				studyAIController->RunAI();
+			}
+			break;
+		}
+		case ECharacterState::DEAD:
+		{
+			SetActorEnableCollision(false);
+			GetMesh()->SetHiddenInGame(false);
+			HPBarWidget->SetHiddenInGame(true);
+			studyAnim->SetDeadAnim();
+			bCanBeDamaged = false;
+			if (bIsPlayer)
+				DisableInput(studyPlayerController);
+			else
+				studyAIController->StopAI();
+
+			GetWorld()->GetTimerManager().SetTimer(DeadTimerHandle, FTimerDelegate::CreateLambda([this]()->void {
+				if (bIsPlayer)
+					studyPlayerController->RestartLevel();
+				else
+					Destroy();
+			}), DeadTimer, false);
+			break;
+		}
 		}
 	}
+}
+ECharacterState AstudyCharacter::GetCharacterState() const
+{
+	return CurrentState;
+}
+
+int32 AstudyCharacter::GetExp() const
+{
+	return CharacterStat->GetDropExp();
 }
 
 bool AstudyCharacter::CanSetWeapon()
@@ -286,21 +395,9 @@ void AstudyCharacter::PostInitializeComponents()
 			AttackStartComboState();
 			studyAnim->JumpToAttackMontageSection(CurrentCombo);
 		}
-		studyAnim->OnAttackHitCheck.AddUObject(this, &AstudyCharacter::AttackCheck);
+		
 	});
-	if (nullptr != CharacterStat)
-	{
-		CharacterStat->OnHPIsZero.AddLambda([this]()->void {
-			ABLOG(Warning, TEXT("On HP is Zero"));
-			studyAnim->SetDeadAnim();
-			SetActorEnableCollision(false);
-		});
-	}
-
-	auto CharacterWidget = Cast<UstudyCharacterWidget>(HPBarWidget->GetUserWidgetObject());
-	if (nullptr != CharacterWidget)
-		CharacterWidget->BindCharacterStat(CharacterStat);
-
+	studyAnim->OnAttackHitCheck.AddUObject(this, &AstudyCharacter::AttackCheck);
 }
 
 void AstudyCharacter::OnAttackMontageEnded(UAnimMontage * Montage, bool bInterrupted)
@@ -371,22 +468,22 @@ float AstudyCharacter::TakeDamage(float DamageAmount, FDamageEvent const & Damag
 	ABLOG(Warning, TEXT("Actor : %s took Damage : %f"), *GetName(), FinalDamage);
 
 	CharacterStat->SetDamage(FinalDamage);
+	if (CurrentState == ECharacterState::DEAD)
+	{
+		if (EventInstigator->IsPlayerController())
+		{
+			auto studyPlayerController = Cast<AstudyPlayerController>(EventInstigator);
+			if (nullptr != studyPlayerController)
+				studyPlayerController->NPCKill(this);
+			else return 0.f;
+		}
+	}
 	return FinalDamage;
 }
 
 void AstudyCharacter::PossessedBy(AController * NewController)
 {
 	Super::PossessedBy(NewController);
-	if (IsPlayerControlled())
-	{
-		SetControlMode(EControlMode::DIABLO);
-		GetCharacterMovement()->MaxWalkSpeed = 600.f;
-	}
-	else
-	{
-		SetControlMode(EControlMode::NPC);
-		GetCharacterMovement()->MaxWalkSpeed = 300.f;
-	}
 }
 
 void AstudyCharacter::OnAssetLoadCompleted()
@@ -396,5 +493,6 @@ void AstudyCharacter::OnAssetLoadCompleted()
 	if (LoadedAssetPath.IsValid())
 	{
 		GetMesh()->SetSkeletalMesh(LoadedAssetPath.Get());
+		SetCharacterState(ECharacterState::READY);
 	}
 }

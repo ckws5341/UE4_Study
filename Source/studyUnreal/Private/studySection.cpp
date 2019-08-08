@@ -3,8 +3,8 @@
 #include "studySection.h"
 #include "studyCharacter.h"
 #include "studyItemBox.h"
-
-
+#include "studyPlayerController.h"
+#include "studyGameMode.h"
 // Sets default values
 AstudySection::AstudySection()
 {
@@ -115,6 +115,7 @@ void AstudySection::SetState(ESectionState NewState)
 		for (UBoxComponent* GateTrigger : GateTriggers)
 			GateTrigger->SetCollisionProfileName(TEXT("studyTrigger"));
 		OperateGates(true);
+		CurrentState = ESectionState::READY;
 		break;
 	}
 	}
@@ -171,5 +172,24 @@ void AstudySection::OnGateTriggerBeginOverlap(UPrimitiveComponent* OverlappedCom
 
 void AstudySection::OnNPCSpawn()
 {
-	GetWorld()->SpawnActor<AstudyCharacter>(GetActorLocation() + FVector::UpVector * 88.f, FRotator::ZeroRotator);
+	GetWorld()->GetTimerManager().ClearTimer(SpawnNPCTimerHandle);
+	auto KeyNPC = GetWorld()->SpawnActor<AstudyCharacter>(GetActorLocation() + FVector::UpVector * 88.f, FRotator::ZeroRotator);
+	if (nullptr != KeyNPC)
+		KeyNPC->OnDestroyed.AddDynamic(this, &AstudySection::OnKeyNPCDestroyed);
+}
+
+void AstudySection::OnKeyNPCDestroyed(AActor * DestroyedActor)
+{
+	auto studyCharacter = Cast<AstudyCharacter>(DestroyedActor);
+	if (nullptr != studyCharacter)
+	{
+		auto studyPlayerController = Cast<AstudyPlayerController>(studyCharacter->LastHitBy);
+		if (nullptr != studyPlayerController)
+		{
+			auto studyGameMode = Cast<AstudyGameMode>(GetWorld()->GetAuthGameMode());
+			if (nullptr != studyGameMode)
+				studyGameMode->AddScore(studyPlayerController);
+			SetState(ESectionState::COMPLETE);
+		}
+	}
 }

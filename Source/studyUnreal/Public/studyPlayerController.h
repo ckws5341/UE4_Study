@@ -15,9 +15,23 @@ class STUDYUNREAL_API AstudyPlayerController : public APlayerController
 	GENERATED_BODY()
 	
 public:
+	AstudyPlayerController();
+
 	virtual void PostInitializeComponents() override;
 	virtual void Possess(APawn* aPawn) override;
 
+	class UstudyHUDWidget* GetHUDWidget() const;
+	void NPCKill(class AstudyCharacter* KilledNPC) const;
+	void AddGameScore() const;
+
+protected:
 	virtual void BeginPlay() override;
-	
+	//virtual void SetupInputComponent() override;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = UI) TSubclassOf<class UstudyHUDWidget> HUDWidgetClass;
+
+private:
+	UPROPERTY() class UstudyHUDWidget* HUDWidget;
+	UPROPERTY() class AstudyPlayerState* studyPlayerState;
+
 };
