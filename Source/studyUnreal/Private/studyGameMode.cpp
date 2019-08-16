@@ -12,6 +12,8 @@ AstudyGameMode::AstudyGameMode()
 	PlayerControllerClass = AstudyPlayerController::StaticClass();
 	PlayerStateClass = AstudyPlayerState::StaticClass();
 	GameStateClass = AstudyGameState::StaticClass();
+
+	ScoreToClear = 2;
 }
 
 void AstudyGameMode::PostInitializeComponents()
@@ -41,6 +43,27 @@ void AstudyGameMode::AddScore(AstudyPlayerController* ScoredPlayer)
 		}
 	}
 	studyGameState->AddGameScore();
+
+	if (GetScore() >= ScoreToClear)
+	{
+		studyGameState->SetGameCleared();
+
+		for (FConstPawnIterator It = GetWorld()->GetPawnIterator(); It; ++It)
+		{
+			(*It)->TurnOff();
+		}
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			const auto studyPlayerController = Cast<AstudyPlayerController>(It->Get());
+			if (nullptr != studyPlayerController)
+				studyPlayerController->ShowResultUI();
+		}
+	}
+}
+
+int32 AstudyGameMode::GetScore() const
+{
+	return studyGameState->GetTotalGameScore();
 }
 
 

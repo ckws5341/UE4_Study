@@ -13,6 +13,7 @@
 #include "studyPlayerController.h"
 #include "studyPlayerState.h"
 #include "studyHUDWidget.h"
+#include "studyGameMode.h"
 
 
 // Sets default values
@@ -56,7 +57,7 @@ AstudyCharacter::AstudyCharacter()
 
 	GetCapsuleComponent()->SetCollisionProfileName(TEXT("studyCharacter"));
 
-	AttackRange = 200.f;
+	AttackRange = 80.f;
 	AttackRadius = 50.f;
 
 	HPBarWidget->SetRelativeLocation(FVector(0.f, 0.f, 180.f));
@@ -105,7 +106,9 @@ void AstudyCharacter::BeginPlay()
 	auto DefaultSetting = GetDefault<UstudyCharacterSetting>();
 	if (bIsPlayer)
 	{
-		AssetIndex = 4;
+		auto studyPlayerState = Cast<AstudyPlayerState>(PlayerState);
+		if (nullptr != studyPlayerState)
+			AssetIndex = studyPlayerState->GetCharacterIndex();
 	}
 	else
 	{
@@ -140,11 +143,22 @@ void AstudyCharacter::SetCharacterState(ECharacterState NewState)
 				if (nullptr != studyPlayerState)
 					CharacterStat->SetNewLevel(studyPlayerState->GetCharacterLevel());
 			}
-
+			else
+			{
+				auto studyGameMode = Cast<AstudyGameMode>(GetWorld()->GetAuthGameMode());
+				if (nullptr != studyGameMode)
+				{
+					int32 TargetLevel = FMath::CeilToInt(((float)studyGameMode->GetScore() * 0.8f));
+					int32 FinalLevel = FMath::Clamp<int32>(TargetLevel, 1, 20);
+					ABLOG(Warning, TEXT("New NPC Level : %d"), FinalLevel);
+					CharacterStat->SetNewLevel(FinalLevel);
+				}
+			}
 			SetActorHiddenInGame(true);
 			HPBarWidget->SetHiddenInGame(true);
 			bCanBeDamaged = false;
 			break;
+			
 		}
 		case ECharacterState::READY:
 		{
@@ -182,7 +196,9 @@ void AstudyCharacter::SetCharacterState(ECharacterState NewState)
 			studyAnim->SetDeadAnim();
 			bCanBeDamaged = false;
 			if (bIsPlayer)
-				DisableInput(studyPlayerController);
+			{
+				studyPlayerController->ShowResultUI();
+			}
 			else
 				studyAIController->StopAI();
 
@@ -206,15 +222,34 @@ int32 AstudyCharacter::GetExp() const
 {
 	return CharacterStat->GetDropExp();
 }
+float AstudyCharacter::GetFinalAttackRange() const
+{
+	return(nullptr != CurrentWeapon) ? CurrentWeapon->GetAttackRange() : AttackRange;
+}
+float AstudyCharacter::GetFinalAttackDamage() const
+{
+	float AttackDamage = (nullptr != CurrentWeapon) ? (CharacterStat->GetAttack() + CurrentWeapon->GetAttackDamage()) : CharacterStat->GetAttack();
+	float AttackModifier = (nullptr != CurrentWeapon) ? (CurrentWeapon->GetAttackModifier()) : 1.f;
+	return AttackDamage * AttackModifier;
+}
 
 bool AstudyCharacter::CanSetWeapon()
 {
-	return (nullptr == CurrentWeapon);
+	return true;
 }
 
 void AstudyCharacter::SetWeapon(AstudyWeapon* NewWeapon)
 {
-	FName WeaponSocket(TEXT("Hand_rSocket"));
+	if (nullptr != NewWeapon)
+	{
+		if (nullptr != CurrentWeapon)
+		{
+			CurrentWeapon->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			CurrentWeapon->Destroy();
+			CurrentWeapon = nullptr;
+		}
+	}
+	FName WeaponSocket(TEXT("hand_rSocket"));
 	if (nullptr != NewWeapon)
 	{
 		NewWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
@@ -424,21 +459,22 @@ void AstudyCharacter::AttackEndComboState()
 
 void AstudyCharacter::AttackCheck()
 {
+	float FinalAttackRange = GetFinalAttackRange();
 	FHitResult HitResult;
 	FCollisionQueryParams Params(NAME_None, false, this);
 	bool bResult = GetWorld()->SweepSingleByChannel(
 		HitResult,
 		GetActorLocation(),
-		GetActorLocation() + GetActorForwardVector() * AttackRange,
+		GetActorLocation() + GetActorForwardVector() * FinalAttackRange,
 		FQuat::Identity,
 		ECollisionChannel::ECC_GameTraceChannel2,
 		FCollisionShape::MakeSphere(AttackRadius),
 		Params);
 
 #if ENABLE_DRAW_DEBUG
-	FVector TraceVec = GetActorForwardVector() * AttackRange;
+	FVector TraceVec = GetActorForwardVector() * FinalAttackRange;
 	FVector Center = GetActorLocation() + TraceVec * 0.5f;
-	float HalfHeight = AttackRange * 0.5f + AttackRadius;
+	float HalfHeight = FinalAttackRange * 0.5f + AttackRadius;
 	FQuat CapsuleRot = FRotationMatrix::MakeFromZ(TraceVec).ToQuat();
 	FColor DrawColor = bResult ? FColor::Green : FColor::Red;
 	float DebugLifeTime = 5.f;
@@ -456,9 +492,10 @@ void AstudyCharacter::AttackCheck()
 	if (bResult)
 	{
 		if (HitResult.Actor.IsValid())
-			ABLOG(Warning, TEXT("Hit Actor Name : %s"), *HitResult.Actor->GetName());
-		FDamageEvent DamageEvent;
-		HitResult.Actor->TakeDamage(CharacterStat->GetAttack() , DamageEvent, GetController(), this);
+		{
+			FDamageEvent DamageEvent;
+			HitResult.Actor->TakeDamage(GetFinalAttackDamage(), DamageEvent, GetController(), this);
+		}
 	}
 }
 

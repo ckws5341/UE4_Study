@@ -2,28 +2,62 @@
 
 #include "studyPlayerState.h"
 #include "studyGameInstance.h"
-
+#include "studySaveGame.h"
 AstudyPlayerState::AstudyPlayerState()
 {
+	GameHighScore = 0;
+	SaveSlotName = TEXT("Player1");
 	CharacterLevel = 1;
 	GameScore = 0;
 	Exp = 0;
+	CharacterIndex = 0;
+
 }
 
 int32 AstudyPlayerState::GetGameScore() const
 {
 	return GameScore;
 }
+int32 AstudyPlayerState::GetGameHighScore() const
+{
+	return GameHighScore;
+}
 int32 AstudyPlayerState::GetCharacterLevel() const
 {
 	return CharacterLevel;
 }
+int32 AstudyPlayerState::GetCharacterIndex() const
+{
+	return CharacterIndex;
+}
+
 void AstudyPlayerState::InitPlayerData()
 {
-	SetPlayerName(TEXT("Destiny"));
-	SetCharacterLevel(5);
-	Exp = 0;
+	auto studySaveGame = Cast<UstudySaveGame>(UGameplayStatics::LoadGameFromSlot(SaveSlotName, 0));
+
+	if (nullptr == studySaveGame)
+	{
+		studySaveGame = GetMutableDefault<UstudySaveGame>();
+	}
+	SetPlayerName(studySaveGame->PlayerName);
+	SetCharacterLevel(studySaveGame->Level);
 	GameScore = 0;
+	GameHighScore = studySaveGame->HighScore;
+	Exp = studySaveGame->Exp;
+	CharacterIndex = studySaveGame->CharacterIndex;
+	SavePlayerData();
+}
+void AstudyPlayerState::SavePlayerData()
+{
+	UstudySaveGame* NewPlayerData = NewObject<UstudySaveGame>();
+	NewPlayerData->PlayerName = GetPlayerName();
+	NewPlayerData->Level = CharacterLevel;
+	NewPlayerData->Exp = Exp;
+	NewPlayerData->HighScore = GameHighScore;
+	NewPlayerData->CharacterIndex = CharacterIndex;
+
+	if (!UGameplayStatics::SaveGameToSlot(NewPlayerData, SaveSlotName, 0))
+		ABLOG(Error, TEXT("SaveGAmeError!"));
 }
 
 float AstudyPlayerState::GetExpRatio() const
@@ -50,12 +84,17 @@ bool AstudyPlayerState::AddExp(int32 IncomeExp)
 		DidLevelUp = true;
 	}
 	OnPlayerStateChanged.Broadcast();
+	SavePlayerData();
+
 	return DidLevelUp;
 }
 void AstudyPlayerState::AddGameScore()
 {
 	GameScore++;
+	if (GameScore >= GameHighScore)
+		GameHighScore = GameScore;
 	OnPlayerStateChanged.Broadcast();
+	SavePlayerData();
 }
 
 void AstudyPlayerState::SetCharacterLevel(int32 NewCharacterLevel)

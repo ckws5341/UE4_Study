@@ -5,6 +5,7 @@
 AstudyGameState::AstudyGameState()
 {
 	TotalGameScore = 0;
+	bGameCleared = false;
 }
 
 int32 AstudyGameState::GetTotalGameScore() const
@@ -17,4 +18,12 @@ void AstudyGameState::AddGameScore()
 	TotalGameScore++;
 }
 
+void AstudyGameState::SetGameCleared()
+{
+	bGameCleared = true;
+}
 
+bool AstudyGameState::IsGameCleared() const
+{
+	return bGameCleared;
+}
